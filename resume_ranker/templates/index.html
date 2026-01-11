@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Ranker</title>
+
+    {% load static %}
+
+    <!-- Favicon -->
+    <link rel="icon" href="{% static 'images/favicon.ico' %}">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background particles */
+        body::before {
+            content: '';
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+            animation: pulse 15s ease-in-out infinite;
+            z-index: 0;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Header */
+        header {
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            position: relative;
+            z-index: 10;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: clamp(1.5rem, 4vw, 2rem);
+            font-weight: 800;
+            background: linear-gradient(135deg, #ffffff 0%, #e0e7ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        header p {
+            margin: 5px 0 0;
+            font-size: clamp(0.85rem, 1.5vw, 1rem);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Django Messages */
+        .message {
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            border-radius: 14px;
+            animation: slideIn 0.5s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 500;
+        }
+
+        .message.error {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border-left: 4px solid #dc2626;
+        }
+
+        .message.success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+
+        .message.info {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1e40af;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .message.warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+            border-left: 4px solid #f59e0b;
+        }
+
+        .container {
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .page-header h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            color: white;
+            font-weight: 800;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            letter-spacing: -1px;
+        }
+
+        .page-header .subtitle {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 400;
+            line-height: 1.6;
+        }
+
+        .page-header .subtitle b {
+            color: #fbbf24;
+            font-weight: 700;
+        }
+
+        .main-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            padding: clamp(25px, 4vw, 45px);
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+        }
+
+        .section {
+            margin-bottom: 40px;
+            animation: slideIn 0.6s ease-out both;
+        }
+
+        .section:nth-child(2) { animation-delay: 0.3s; }
+        .section:nth-child(3) { animation-delay: 0.4s; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .section-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .section h2 {
+            font-size: clamp(1.4rem, 3vw, 1.8rem);
+            color: #1e293b;
+            font-weight: 700;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .form-field {
+            position: relative;
+        }
+
+        .form-field.full {
+            grid-column: 1 / -1;
+        }
+
+        .form-field label {
+            display: block;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+        }
+
+        .form-field input,
+        .form-field textarea {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 14px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+            font-family: inherit;
+        }
+
+        .form-field input:focus,
+        .form-field textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .form-field textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .char-counter {
+            position: absolute;
+            bottom: -22px;
+            right: 5px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .upload-zone {
+            border: 3px dashed #cbd5e1;
+            border-radius: 20px;
+            padding: 50px 30px;
+            text-align: center;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .upload-zone:hover::before {
+            left: 100%;
+        }
+
+        .upload-zone:hover {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+            transform: translateY(-3px);
+        }
+
+        .upload-zone.dragover {
+            border-color: #667eea;
+            background: #eef2ff;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 3.5rem;
+            margin-bottom: 15px;
+            display: block;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #334155;
+            margin-bottom: 8px;
+        }
+
+        .upload-subtext {
+            font-size: 0.95rem;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .file-counter {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: white;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
+        }
+
+        .files-list {
+            margin-top: 25px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: white;
+            border-radius: 14px;
+            border: 2px solid #f1f5f9;
+            transition: all 0.3s ease;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .file-item:hover {
+            border-color: #e0e7ff;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+            transform: translateX(5px);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #334155;
+            font-size: 0.95rem;
+        }
+
+        .remove-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #fee2e2;
+            color: #dc2626;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-btn:hover {
+            background: #dc2626;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .action-area {
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .analyze-btn {
+            padding: 18px 50px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .analyze-btn:hover::before {
+            left: 100%;
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(16, 185, 129, 0.4);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .analyze-btn .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.3);
+            padding: 4px 12px;
+            border-radius: 12px;
+            margin-left: 8px;
+            font-weight: 800;
+        }
+
+        /* Footer */
+        footer {
+            background: rgba(243, 244, 246, 0.95);
+            backdrop-filter: blur(10px);
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-top: 50px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+
+        footer strong {
+            color: #374151;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                padding: 15px;
+            }
+
+            main {
+                padding: 0 15px;
+                margin: 20px auto;
+            }
+
+            .main-card {
+                padding: 25px 20px;
+                border-radius: 20px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .upload-zone {
+                padding: 35px 20px;
+            }
+
+            .section-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 1.2rem;
+            }
+
+            footer {
+                padding: 15px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ================= HEADER ================= -->
+    <header>
+        <h1>🚀 AI Resume Ranker</h1>
+        <p>NLP-based Resume Analysis & Candidate Ranking System</p>
+    </header>
+
+    <!-- ================= MAIN CONTENT ================= -->
+    <main>
+        <!-- Django Messages -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="container">
+            <div class="page-header">
+                <h1>🚀 AI Resume Ranker</h1>
+                <p class="subtitle">
+                    Where AI meets hiring: analyze, score, and rank resumes effortlessly.<br>
+                </p>
+            </div>
+
+            <div class="main-card">
+                <form id="resumeRankerForm" method="post" enctype="multipart/form-data" action="/rank/">
+                    {% csrf_token %}
+                    
+                    <!-- Job Requirements Section -->
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-icon">💼</div>
+                            <h2>Job Requirements</h2>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-field full">
+                                <label for="job_description">Job Description *</label>
+                                <textarea
+                                    id="job_description"
+                                    name="job_description"
+                                    placeholder="Example: Looking for a Senior Data Scientist with expertise in Python, Machine Learning, and 5+ years of experience in predictive modeling and NLP. Should have experience with TensorFlow, PyTorch, and cloud platforms like AWS. Responsibilities include developing ML models, mentoring junior team members, and collaborating with cross-functional teams."
+                                    required
+                                ></textarea>
+                                <span class="char-counter"><span id="charCount">0</span> characters</span>
+                            </div>
+
+                            <div class="form-field">
+                                <label for="skills">Required Skills</label>
+                                <input
+                                    type="text"
+                                    id="skills"
+                                    name="skills"
+                                    placeholder="e.g., Python, React, AWS"
+                                />
+                            </div>
+
+                            <div class="form-field">
+                                <label for="education">Minimum Education</label>
+                                <input
+                                    type="text"
+                                    id="education"
+                                    name="education"
+                                    placeholder="e.g., Bachelor's, Master's"
+                                />
+                            </div>
+
+                            <div class="form-field">
+                                <label for="experience">Minimum Experience (Years)</label>
+                                <input
+                                    type="number"
+                                    id="experience"
+                                    name="experience_years"
+                                    min="0"
+                                    step="0.5"
+                                    placeholder="e.g., 2"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resume Upload Section -->
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-icon">📄</div>
+                            <h2>Upload Resumes</h2>
+                            <div style="margin-left: auto;">
+                                <span class="file-counter">
+                                    <span>📊</span>
+                                    <span id="fileCount">0</span> / 25
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="upload-zone" id="uploadZone">
+                            <span class="upload-icon">☁️</span>
+                            <div class="upload-text">Drag & Drop Your Resumes Here</div>
+                            <div class="upload-subtext">or click to browse • PDF, JPG, PNG • Max 5MB each</div>
+                            <input
+                                type="file"
+                                id="fileInput"
+                                name="resumes"
+                                multiple
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                hidden
+                            />
+                            <button type="button" class="upload-btn" id="browseBtn">
+                                📁 Browse Files
+                            </button>
+                        </div>
+
+                        <div class="files-list" id="filesList"></div>
+                    </div>
+
+                    <!-- Action Area -->
+                    <div class="action-area">
+                        <button type="submit" class="analyze-btn" id="analyzeBtn" disabled>
+                            ⚡ Analyze & Rank <span class="badge" id="resumeBadge">0</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- ================= FOOTER ================= -->
+    <footer>
+        <strong>© {{ year|default:"2026" }} AI Resume Ranker</strong> | 
+        Built using Django, NLP, and Generative AI
+    </footer>
+
+    <script>
+        let uploadedFiles = [];
+        const MAX_FILES = 25;
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadZone = document.getElementById('uploadZone');
+        const browseBtn = document.getElementById('browseBtn');
+        const filesList = document.getElementById('filesList');
+        const fileCount = document.getElementById('fileCount');
+        const resumeBadge = document.getElementById('resumeBadge');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const jobDescription = document.getElementById('job_description');
+        const charCount = document.getElementById('charCount');
+
+        // Character counter
+        jobDescription.addEventListener('input', () => {
+            charCount.textContent = jobDescription.value.length;
+        });
+
+        // Browse button
+        browseBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        // Click to upload
+        uploadZone.addEventListener('click', (e) => {
+            if (e.target !== browseBtn && !e.target.closest('.upload-btn')) {
+                fileInput.click();
+            }
+        });
+
+        // Drag and drop
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+            fileInput.value = '';
+        });
+
+        function handleFiles(files) {
+            for (let file of files) {
+                if (uploadedFiles.length >= MAX_FILES) {
+                    alert(`Maximum ${MAX_FILES} files allowed!`);
+                    break;
+                }
+                
+                // Validate file type
+                const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+                if (!validTypes.includes(file.type)) {
+                    alert(`${file.name} is not a valid file type. Please upload PDF, JPG, or PNG files only.`);
+                    continue;
+                }
+                
+                // Validate file size (5MB max)
+                const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+                if (file.size > maxSize) {
+                    alert(`${file.name} is too large. Maximum file size is 5MB.`);
+                    continue;
+                }
+                
+                uploadedFiles.push(file);
+            }
+            updateUI();
+        }
+
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            updateUI();
+        }
+
+        function updateUI() {
+            filesList.innerHTML = '';
+            
+            uploadedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-icon">📄</div>
+                        <div class="file-name">${file.name}</div>
+                    </div>
+                    <button type="button" class="remove-btn" onclick="removeFile(${index})">×</button>
+                `;
+                filesList.appendChild(fileItem);
+            });
+
+            fileCount.textContent = uploadedFiles.length;
+            resumeBadge.textContent = uploadedFiles.length;
+            analyzeBtn.disabled = uploadedFiles.length === 0;
+        }
+
+        // Form submission
+        document.getElementById('resumeRankerForm').addEventListener('submit', (e) => {
+            // Prevent double submission
+            if (analyzeBtn.disabled && analyzeBtn.innerHTML.includes('Analyzing')) {
+                e.preventDefault();
+                return false;
+            }
+            
+            const dataTransfer = new DataTransfer();
+            uploadedFiles.forEach(file => dataTransfer.items.add(file));
+            fileInput.files = dataTransfer.files;
+            
+            analyzeBtn.innerHTML = '⏳ Analyzing...';
+            analyzeBtn.disabled = true;
+        });
+
+        // Make removeFile globally accessible
+        window.removeFile = removeFile;
+    </script>
+</body>
+</html>
